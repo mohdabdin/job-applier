@@ -18,7 +18,8 @@ Only to the AI provider you chose (Google's Gemini API or Anthropic's Claude API
 when you use a feature that needs it:
 
 - **Fill this page:** the form's questions and options, the page's text, the job description if saved, your
-  profile, your saved answers and the text of your CVs.
+  profile, your saved answers and the text of your CVs. If a question can't be read from the page's text, a
+  screenshot of the visible part of the page (with that field outlined) is sent too, at most four per fill.
 - **Saving an answer to memory:** the question, your answer and your saved answers.
 - **Tailored CVs:** a CV's text, the job description, your profile and saved answers.
 - **Discover:** the text of LinkedIn job listings it opens, with your profile and preferences.

@@ -117,6 +117,9 @@
   };
   const nearbyText = (el) => nearby(el).text;
 
+  // fields whose question came from an attribute (name, id, placeholder) or from nothing: worth a second look
+  const weak = new WeakSet();
+
   const rawLabel = (el) => {
     const lb = el.getAttribute("aria-labelledby");
     if (lb) { const t = textOfIds(el, lb); if (t) return t; }
@@ -134,8 +137,9 @@
     if (group && group !== el) { const t = groupLabel(group, [el]); if (t) return t; }
     for (const a of ["placeholder", "title", "name", "id"]) {
       const v = el.getAttribute(a);
-      if (v && clean(v)) return clean(v.replace(/[_\-[\]]+/g, " "));
+      if (v && clean(v)) { weak.add(el); return clean(v.replace(/[_\-[\]]+/g, " ")); }
     }
+    weak.add(el);
     return "";
   };
 
@@ -286,7 +290,8 @@
         let label = rawLabel(el);
         if (!label || GENERIC.test(label)) { // "Attach": the question is the upload widget's heading
           const box = el.closest("[role=group], fieldset") || el.parentElement?.parentElement?.parentElement;
-          label = groupLabel(box, [el]) || label || "file upload";
+          label = groupLabel(box, [el]) || label;
+          if (!label) { weak.add(el); label = "file upload"; }
         }
         add(out, { kind: "file", el }, { label, required: el.required || el.getAttribute("aria-required") === "true",
           value: el.files && el.files.length ? [...el.files].map((f) => f.name).join(", ") : "" });
@@ -378,7 +383,74 @@
           help: nearby(items[0], items).help, required,
           options: options.map((o) => o.label), value: options.filter((o) => checked(o.el)).map((o) => o.label).join(" | ") });
     }
+    markUnclear(out);
     return { fields: out, page: pageInfo() };
+  }
+
+  // A second look for questions the markup doesn't make clear: no real label, the same label on several
+  // fields, or the section heading taken for the question. Those get their surroundings, with the field
+  // marked, so the panel can have the model read the question the way a person would.
+  function markUnclear(out) {
+    const key = (f) => `${f.kind}|${norm(f.label)}`;
+    const counts = new Map();
+    for (const f of out) counts.set(key(f), (counts.get(key(f)) || 0) + 1);
+    for (const f of out) {
+      const rec = state.fields.get(f.id);
+      const own = rec.el ? [rec.el] : rec.options.map((o) => o.el);
+      if (!(own.some((e) => weak.has(e)) || !f.label || f.label.length < 3 || counts.get(key(f)) > 1
+        || (f.section && norm(f.section) === norm(f.label)))) continue;
+      f.unclear = true;
+      f.context = surroundings(own);
+    }
+  }
+
+  // the text around a field, ⟦THIS FIELD⟧ where it sits and ⟦other field⟧ for others, plus its attributes
+  function surroundings(own) {
+    let box = own[0];
+    for (let i = 0; box.parentElement && i < 12; i++) {
+      box = box.parentElement;
+      if (own.every((o) => box.contains(o)) && clean(box.innerText, 5000).length >= 400) break;
+    }
+    const parts = [];
+    const push = (t) => { if (parts[parts.length - 1] !== t) parts.push(t); };
+    const walker = document.createTreeWalker(box, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    for (let n = walker.currentNode; n; n = walker.nextNode()) {
+      if (n.nodeType === Node.TEXT_NODE) {
+        const p = n.parentElement;
+        if (!p || p.closest("script, style, noscript, select, [aria-hidden=true]") || !shown(p)) continue;
+        const t = clean(n.textContent);
+        if (t) push(t);
+      } else if (n.matches(CTRL)) {
+        push(own.some((o) => o === n || o.contains(n) || n.contains(o)) ? "⟦THIS FIELD⟧" : "⟦other field⟧");
+      }
+    }
+    let text = parts.join(" ");
+    const at = text.indexOf("⟦THIS FIELD⟧");
+    if (text.length > 1500) text = (at > 1000 ? "…" : "") + text.slice(Math.max(0, at - 1000), Math.max(0, at - 1000) + 1500) + "…";
+    const el = own[0];
+    const attrs = ["name", "id", "placeholder", "title"].map((a) => el.getAttribute(a) && `${a}="${clean(el.getAttribute(a), 80)}"`).filter(Boolean);
+    return attrs.length ? `${text}\n(field attributes: ${attrs.join(" ")})` : text;
+  }
+
+  // outline a field (scrolled into view) for a screenshot, or remove the outline
+  function outline(id, on) {
+    const rec = state.fields.get(id);
+    if (!rec) return false;
+    const els = rec.el ? [rec.el] : rec.options.map((o) => o.el);
+    let t = els.length > 1 ? commonAncestor(els) : els[0];
+    if (t && !shown(t)) t = t.labels?.[0] || t.parentElement;
+    if (!t) return false;
+    if (on) {
+      t.scrollIntoView({ block: "center", inline: "nearest" });
+      t.dataset.jaOutline = t.style.outline;
+      t.style.outline = "3px solid #e11d48";
+      t.style.outlineOffset = "3px";
+    } else if ("jaOutline" in t.dataset) {
+      t.style.outline = t.dataset.jaOutline;
+      t.style.outlineOffset = "";
+      delete t.dataset.jaOutline;
+    }
+    return true;
   }
 
   const commonAncestor = (els) => {
@@ -545,5 +617,5 @@
     return true;
   }
 
-  window.__jobApplier = { scan, fill, focusField, pageInfo };
+  window.__jobApplier = { scan, fill, focusField, outline, pageInfo };
 })();

@@ -142,6 +142,31 @@ test("plan keeps a new CV only when it can be made", async () => {
   assert.equal((await run(mk(nw), upload, { canMakeCv: false })).new_cv_slug, "");
 });
 
+test("clarify: reads unclear questions from their surroundings, leaves the rest for screenshots", async () => {
+  const fields = [
+    { id: "0:f4", kind: "textarea", label: "Preliminary questions", unclear: true, context: "Preliminary questions 1. Why robotics? ⟦THIS FIELD⟧ 2. Your best project? ⟦other field⟧" },
+    { id: "0:f5", kind: "textarea", label: "Preliminary questions", unclear: true, context: "… ⟦other field⟧ 2. Your best project? ⟦THIS FIELD⟧" }];
+  const { ai, calls } = fakeAi(
+    { fields: [{ id: "0:f4", label: "Why robotics?", help: "max 200 words" }, { id: "0:f5", label: "", help: "" }] },
+    { fields: [{ id: "0:f5", label: "Your best project?", help: "" }] });
+  const first = await fill.clarify({ ai }, fields);
+  assert.equal(fields[0].label, "Why robotics?");
+  assert.equal(fields[0].help, "max 200 words");
+  assert.equal(fields[0].unclear, undefined);
+  assert.equal(fields[0].context, undefined);
+  assert.deepEqual(first.unresolved.map((f) => f.id), ["0:f5"]);
+  assert.equal(fields[1].unclear, true); // still unclear: keeps its context for the plan
+  assert.match(calls[0].prompt, /Why robotics\?/);
+  await fill.clarify({ ai }, first.unresolved, [{ id: "0:f5", data: "QQ==" }]);
+  assert.equal(fields[1].label, "Your best project?");
+  assert.deepEqual(calls[1].files, [{ mimeType: "image/jpeg", data: "QQ==" }]);
+  assert.match(calls[1].prompt, /show these fields outlined: 0:f5/);
+  assert.deepEqual(await fill.clarify({ ai }, []), { unresolved: [], cost_usd: 0 });
+  const echo = [{ id: "0:f6", kind: "text", label: "custom q 77", unclear: true, context: "⟦THIS FIELD⟧" }];
+  const r = await fill.clarify({ ai: fakeAi({ fields: [{ id: "0:f6", label: "Custom Q 77", help: "" }] }).ai }, echo);
+  assert.equal(r.unresolved.length, 1); // repeating the label that failed isn't an answer
+});
+
 test("remember: saves reusable answers, declines company-specific, rejects bad paths", async () => {
   const { data } = await exampleData();
   const { ai } = fakeAi({ save: true, file: "notice-period.md", summary: "Notice period", content: "Four weeks." },

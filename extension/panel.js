@@ -488,6 +488,37 @@ async function scanTab(tabId) {
   return { fields, page };
 }
 
+// Questions the form reader couldn't place from the markup: first the model reads them from the text around each
+// field; any it still can't place, it reads from screenshots with the field outlined.
+const MAX_SHOTS = 4;
+async function clarifyFields(tab, fields) {
+  const unclear = fields.filter((f) => f.unclear);
+  if (!unclear.length) return 0;
+  status(`Reading ${unclear.length} question${unclear.length > 1 ? "s" : ""} the page doesn't label clearly…`);
+  let { unresolved, cost_usd: cost } = await fill.clarify(ctx, unclear);
+  if (!unresolved.length) return cost;
+  status(`Looking at ${Math.min(unresolved.length, MAX_SHOTS)} field${unresolved.length > 1 ? "s" : ""} on screen…`);
+  const shots = [];
+  for (const f of unresolved.slice(0, MAX_SHOTS)) {
+    const [frameId, localId] = splitId(f.id);
+    const outline = (on) => chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [frameId] },
+      func: (id, on) => window.__jobApplier.outline(id, on), args: [localId, on] }).catch(() => []);
+    try {
+      const [r] = await outline(true);
+      if (!r?.result) continue;
+      await wait(400, 400); // let it scroll; Chrome also allows only ~2 captures a second
+      const url = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 70 });
+      shots.push({ id: f.id, data: url.slice(url.indexOf(",") + 1) });
+    } catch (e) {
+      console.warn("screenshot", f.id, e);
+    } finally {
+      await outline(false);
+    }
+  }
+  if (shots.length) cost += (await fill.clarify(ctx, unresolved.filter((f) => shots.some((s) => s.id === f.id)), shots)).cost_usd;
+  return cost;
+}
+
 async function cvFile(name) {
   const bytes = await data.folder.readBytes(`profile/cvs/${name}`);
   if (!bytes) throw new Error(`CV ${name} isn't in profile/cvs/`);
@@ -520,9 +551,11 @@ async function fillPage() {
     status("Reading the form…");
     const { fields, page } = await scanTab(tab.id);
     if (!fields.length) return status("No form fields found. If the page has an Apply button, click it first, then fill.", "error");
+    const extra = await clarifyFields(tab, fields).catch((e) => { console.warn("clarify", e); return 0; });
     status(`Working out answers for ${fields.length} fields…`);
     const pageInfo = page || { url: tab.url, title: tab.title, text: "" };
     const plan = await fill.plan(ctx, { job_id: current.job?.id || "", page: pageInfo, fields });
+    plan.cost_usd += extra;
     Object.assign(st, { plan, page: pageInfo, fields: new Map(fields.map((f) => [f.id, f])), results: {}, answered: new Set(), stale: false });
     renderCurrent();
     const todo = plan.answers.filter((a) => ["fill", "choose", "check", "upload_cv"].includes(a.action));

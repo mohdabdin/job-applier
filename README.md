@@ -17,7 +17,9 @@ form and click Submit yourself.**
 
 **Apply.** Open an application page and press **Fill this page**. Job Applier:
 
-1. reads every question on the form, including dropdowns, radio buttons, checkboxes and file uploads;
+1. reads every question on the form, including dropdowns, radio buttons, checkboxes and file uploads. When the
+   page's markup doesn't make a question clear, the model reads it from the text around the field, and if that
+   fails, from a screenshot with the field outlined;
 2. works out each answer from your profile, CVs and the answers you've given before, in one model call;
 3. fills them in, then checks each one stuck. Anything that didn't is flagged for you to do by hand;
 4. asks you, in the side panel, about anything it can't answer from what it knows: salary, notice period, "Why

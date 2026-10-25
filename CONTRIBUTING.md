@@ -9,7 +9,8 @@ extension/            the whole product: load this folder unpacked in Chrome
   manifest.json       MV3; side panel, scripting, tabs, storage; <all_urls> (forms live on any site)
   sw.js               service worker: opens the side panel, carries a tab's job to tabs it opens
   panel.html/css/js   the side panel: setup, Apply, Discover, Settings
-  content.js          injected into every frame of a page on "Fill": reads questions, fills answers (no per-site code)
+  content.js          injected into every frame of a page on "Fill": reads questions, fills answers (no per-site code);
+                      flags questions it can't place, with their surroundings, for fill.clarify (text, then screenshot)
   linkedin.js         injected into the Discover tab only: reads LinkedIn search cards and job details
   lib/
     llm.js            one structured-output call to Gemini or Claude with the user's key; prices; retries

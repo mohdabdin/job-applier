@@ -21,6 +21,7 @@ export const PROVIDERS = {
 // strict checking matters.
 export const ROLES = {
   fill: { tier: "fast", effort: "medium" },
+  clarify: { tier: "fast", effort: "low" },
   assess: { tier: "fast", effort: "medium" },
   searches: { tier: "fast", effort: "low" },
   memory: { tier: "fast", effort: "low" },
@@ -63,7 +64,7 @@ const RETRY_STATUS = new Set([429, 500, 502, 503, 504, 529]);
 /**
  * settings: { provider, apiKey, models?: {fast, strong} }
  * role: a key of ROLES. schema: a strict JSON Schema (see schema.js).
- * files: [{ mimeType: "application/pdf", data: <base64> }] attached before the prompt.
+ * files: [{ mimeType: "application/pdf" | "image/jpeg", data: <base64> }] attached before the prompt.
  * Returns { data, model, usage, cost_usd }.
  */
 export async function structured(settings, role, { system = "", prompt, schema, files = [] }, { fetchImpl = fetch } = {}) {
@@ -155,7 +156,8 @@ async function gemini(fetchImpl, key, model, effort, system, prompt, schema, fil
 
 async function anthropic(fetchImpl, key, model, effort, system, prompt, schema, files) {
   const content = [
-    ...files.map((f) => ({ type: "document", source: { type: "base64", media_type: f.mimeType, data: f.data } })),
+    ...files.map((f) => ({ type: f.mimeType.startsWith("image/") ? "image" : "document",
+      source: { type: "base64", media_type: f.mimeType, data: f.data } })),
     { type: "text", text: prompt },
   ];
   const body = {

@@ -54,6 +54,7 @@ const FILL_SYSTEM = (name, day, profile, learned) => `You fill in a job applicat
   - \`skip\`: optional fields with nothing true to put; fields already holding the right value; cover-letter and other file uploads except the CV (if one of those is required, \`ask\` instead); anything that isn't part of the application (site search, newsletter sign-up, cookie or language pickers).
 - Demographic, EEO and diversity questions: follow learned memory if it covers them; otherwise choose "Prefer not to say" / "Decline to self-identify" or the closest option when offered; otherwise ask.
 - Never fill passwords or payment details.
+- A field marked \`unclear\` is one whose question couldn't be read from the page; its \`context\` is the text around it (⟦THIS FIELD⟧ marks where it sits). Work out the question from that and the page text. If you still can't tell, \`ask\`, with a \`question\` that says where the field is ("the second text box under 'Preliminary questions'").
 - \`source\` says where each answer comes from.
 
 ## CV (think like the ATS)
@@ -144,6 +145,46 @@ export async function checkPlan(data, plan, fields, { canMakeCv = true } = {}) {
   plan.new_cv_base = slug ? base : "";
   if (!slug) plan.new_cv_target_roles = plan.new_cv_emphasis = "";
   return plan;
+}
+
+// ---- unclear questions ---------------------------------------------------------------------------
+// The form reader flags fields whose question the markup doesn't make clear (no label, the same label on several
+// fields) and sends their surroundings. One cheap call reads the questions from that text; the panel can follow up
+// with screenshots of the fields it still couldn't place.
+const CLARIFY = obj({
+  fields: list(obj({
+    id: str("the field's id, unchanged"),
+    label: str("the question this field asks, worded as on the page; empty if you can't tell"),
+    help: str("instructions or limits the page gives for it (word counts, format), else empty"),
+  })),
+});
+
+const CLARIFY_SYSTEM = `A browser extension is reading a job application form. For some fields it couldn't tell which question they ask from the page's markup: there's no label, or several fields share one. For each field you get what it did read (\`label_read\`), the field's kind and options, and the text around it on the page, with ⟦THIS FIELD⟧ where the field sits and ⟦other field⟧ for other fields. Screenshots, when attached, show the field outlined in red.
+
+Give the question each field asks, the way a person looking at the form would read it: usually the text just before ⟦THIS FIELD⟧ (or just after, for a checkbox), not a section heading shared by several fields. When numbered questions share a heading, each field gets its own question. \`label_read\` is what didn't work (often an attribute like "custom q 77"), so don't repeat it. Never make a question up: if the text and screenshot don't show it, leave \`label\` empty.`;
+
+/** fields: the unclear ones (each with `context`); shots: [{id, data}] JPEG screenshots. Updates labels in place. */
+export async function clarify(ctx, fields, shots = []) {
+  if (!fields.length) return { unresolved: [], cost_usd: 0 };
+  const items = fields.map((f) => ({ id: f.id, kind: f.kind, label_read: f.label, section: f.section || "",
+    options: f.options || [], surroundings: f.context || "" }));
+  const pics = shots.length ? `Screenshots, in order, show these fields outlined: ${shots.map((s) => s.id).join(", ")}.\n\n` : "";
+  const r = await ctx.ai("clarify", { system: CLARIFY_SYSTEM, schema: CLARIFY,
+    prompt: `${pics}<fields>\n${JSON.stringify(items, null, 1)}\n</fields>`,
+    files: shots.map((s) => ({ mimeType: "image/jpeg", data: s.data })) });
+  const got = new Map(r.data.fields.map((x) => [x.id, x]));
+  const unresolved = [];
+  for (const f of fields) {
+    const g = got.get(f.id);
+    const label = (g?.label || "").trim();
+    if (!label || label.toLowerCase() === f.label.toLowerCase()) { unresolved.push(f); continue; } // echoing what failed isn't an answer
+    f.label_read = f.label;
+    f.label = label;
+    if (g.help.trim() && !f.help) f.help = g.help.trim();
+    delete f.unclear;
+    delete f.context;
+  }
+  return { unresolved, cost_usd: r.cost_usd };
 }
 
 // ---- memory writes -------------------------------------------------------------------------------

@@ -34,17 +34,18 @@ test("gemini: schema, system, file parts, thoughts skipped, cost", async () => {
   assert.ok(Math.abs(r.cost_usd - cost("gemini-3.8-flash", r.usage)) < 1e-12);
 });
 
-test("anthropic: direct-browser header, output_config format, document blocks, model override", async () => {
+test("anthropic: direct-browser header, output_config format, document and image blocks, model override", async () => {
   const { fn, calls } = fakeFetch([200, { content: [{ type: "text", text: '{"fit":"poor","why":"no"}' }], stop_reason: "end_turn",
     usage: { input_tokens: 500, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }]);
   const r = await structured({ provider: "anthropic", apiKey: "k", models: { strong: "claude-opus-5-5" } }, "cv",
-    { prompt: "p", schema, files: [{ mimeType: "application/pdf", data: "QQ==" }] }, { fetchImpl: fn });
+    { prompt: "p", schema, files: [{ mimeType: "application/pdf", data: "QQ==" }, { mimeType: "image/jpeg", data: "QQ==" }] }, { fetchImpl: fn });
   assert.equal(r.model, "claude-opus-5-5");
   const h = calls[0].init.headers;
   assert.equal(h["anthropic-dangerous-direct-browser-access"], "true");
   assert.equal(h["x-api-key"], "k");
   assert.deepEqual(calls[0].body.output_config, { effort: "medium", format: { type: "json_schema", schema } });
   assert.equal(calls[0].body.messages[0].content[0].type, "document");
+  assert.equal(calls[0].body.messages[0].content[1].type, "image");
   assert.equal(calls[0].body.system, undefined);
 });
 
