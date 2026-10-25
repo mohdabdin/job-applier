@@ -67,7 +67,10 @@ async function addSpend(usd) {
 }
 
 const ctx = {
-  get data() { return data; },
+  get data() {
+    if (!data) throw new Error(NO_FOLDER);
+    return data;
+  },
   async ai(role, args) {
     if (settings.monthlyCapUsd && (await spentThisMonth()) >= settings.monthlyCapUsd) {
       throw new Error(`This month's model budget ($${settings.monthlyCapUsd}) is used up. Raise it in Settings.`);
@@ -78,6 +81,26 @@ const ctx = {
   },
 };
 
+// ---- the data folder ------------------------------------------------------------------------
+const NO_FOLDER = "Your data folder isn't open. Press the button again and allow access, or pick it in Settings → Use another folder.";
+
+// Call first thing in a click handler: Chrome only shows its permission prompt in response to a click, and can
+// take back access while the panel stays open (e.g. after "Allow this time" ends).
+async function ensureData() {
+  try {
+    if (data && (await handle.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    if (handle && (await handle.requestPermission({ mode: "readwrite" })) === "granted") {
+      data = new Data(new Folder(handle));
+      return true;
+    }
+  } catch (e) {
+    console.warn("folder permission", e);
+  }
+  data = null;
+  status(NO_FOLDER, "error");
+  return false;
+}
+
 // ---- views --------------------------------------------------------------------------------
 const VIEWS = ["setup", "connect", "apply", "discover", "settings"];
 let view = "apply";
@@ -86,6 +109,7 @@ function showView(v) {
   for (const name of VIEWS) $(`#view-${name}`).hidden = name !== v;
   $("#top").hidden = v === "setup" || v === "connect";
   document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  if (!data && (v === "apply" || v === "discover")) status(NO_FOLDER, "error");
   if (v === "apply") refresh();
   if (v === "discover") renderDiscover();
   if (v === "settings") renderSettings();
@@ -487,6 +511,7 @@ async function fillField(tabId, st, answer) {
 }
 
 async function fillPage() {
+  if (!(await ensureData())) return;
   const tab = await activeTab();
   if (!tab || !/^https?:/.test(tab.url || "")) return status("Open an application page first.", "error");
   const st = stateFor(tab.id);
@@ -671,6 +696,7 @@ async function ensureJob(tab) {
 }
 
 $("#applied").onclick = async () => {
+  if (!(await ensureData())) return;
   const tab = await activeTab();
   setBusy(true);
   try {
@@ -688,6 +714,7 @@ $("#applied").onclick = async () => {
 };
 
 $("#skip").onclick = async () => {
+  if (!(await ensureData())) return;
   const tab = await activeTab();
   if (!current.job) return status("This page isn't a tracked job.", "error");
   setBusy(true);
@@ -719,7 +746,7 @@ async function openJob(job) {
   const tab = await chrome.tabs.create({ url: job.apply_url, active: true });
   await chrome.storage.session.set({ [`tab:${tab.id}`]: job });
 }
-$("#queue-refresh").onclick = loadQueue;
+$("#queue-refresh").onclick = async () => { if (await ensureData()) loadQueue(); };
 
 // ---- discover -----------------------------------------------------------------------------
 // "Discover more": the searches from preferences.md, each up to PAGES deep, in one LinkedIn tab the panel drives.
@@ -849,6 +876,7 @@ async function scanPage(tabId, limits) {
 }
 
 async function discoverMore() {
+  if (scan.running || !(await ensureData())) return;
   Object.assign(scan, { running: true, stop: false, counts: {}, cost: 0, opened: 0 });
   $("#discover").disabled = true;
   $("#discover-stop").hidden = false;
