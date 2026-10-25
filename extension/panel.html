@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Job Applier</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header id="top" hidden>
+    <nav class="tabs">
+      <button data-view="apply">Apply</button>
+      <button data-view="discover">Discover</button>
+    </nav>
+    <span id="spend" class="muted" title="Model spend this month"></span>
+    <button data-view="settings" class="icon" title="Settings">⚙</button>
+  </header>
+
+  <div id="status" hidden></div>
+
+  <!-- first run -->
+  <main id="view-setup" hidden></main>
+
+  <!-- the folder permission lapsed (browser restart without "Allow on every visit") -->
+  <main id="view-connect" hidden>
+    <h1>Job Applier</h1>
+    <p>Chrome needs your OK to open your data folder (<strong id="connect-name"></strong>) again.</p>
+    <button id="connect" class="primary">Open data folder</button>
+    <p class="muted">Tip: choose "Allow on every visit" and this won't come back.</p>
+  </main>
+
+  <main id="view-apply" hidden>
+    <section id="current">
+      <div id="job-title" class="title">—</div>
+      <div id="job-sub" class="muted"></div>
+      <div class="row">
+        <button id="fill" class="primary">Fill this page</button>
+        <span id="cost" class="muted"></span>
+        <button id="view-cv" class="ghost" hidden>View CV</button>
+      </div>
+      <div id="cv-why" class="muted" hidden></div>
+      <div id="notes" class="note" hidden></div>
+      <div id="questions"></div>
+      <div id="fields"></div>
+      <div class="row actions">
+        <button id="applied">Mark applied</button>
+        <button id="skip" class="ghost">Skip job</button>
+      </div>
+    </section>
+    <section>
+      <h2>Queue <span id="queue-count" class="muted"></span> <button id="queue-refresh" class="icon" title="Refresh">↻</button></h2>
+      <ol id="queue"></ol>
+      <p id="queue-empty" class="muted" hidden>Nothing queued. Use Discover, or open any application page and press Fill.</p>
+    </section>
+  </main>
+
+  <main id="view-discover" hidden>
+    <div id="discover-off" hidden>
+      <h2>Discover jobs on LinkedIn</h2>
+      <p>Runs LinkedIn searches built from your preferences, opens each new listing, judges how well it fits you, and
+        queues the good ones.</p>
+      <p class="note"><strong>Your LinkedIn account, your risk.</strong> LinkedIn's terms don't allow automated
+        browsing, and LinkedIn can restrict accounts it thinks are automated. Discover paces itself like a person,
+        stops after a set number of listings, and never clicks Apply or Easy Apply, but the risk isn't zero.</p>
+      <button id="discover-enable">I understand, turn Discover on</button>
+    </div>
+    <div id="discover-on" hidden>
+      <p class="muted">Runs your searches in a LinkedIn tab of its own and opens each new listing to judge it. Good
+        fits go to the Apply queue. Each press carries on where the last one stopped; searches start again from the
+        newest listings the next day. Keep the LinkedIn tab in front while it runs (use another window meanwhile).</p>
+      <div class="row">
+        <button id="discover" class="primary">Discover more</button>
+        <button id="discover-stop" hidden>Stop</button>
+      </div>
+      <div id="scan-where" class="muted"></div>
+      <div id="scan-stats" class="muted"></div>
+      <ol id="found"></ol>
+    </div>
+  </main>
+
+  <main id="view-settings" hidden></main>
+
+  <script src="panel.js" type="module"></script>
+</body>
+</html>

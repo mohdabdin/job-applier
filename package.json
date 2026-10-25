@@ -1,0 +1,10 @@
+{
+  "name": "job-applier",
+  "private": true,
+  "type": "module",
+  "description": "A Chrome extension that fills job applications from your CV and answers, and finds jobs that fit. You click Submit.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

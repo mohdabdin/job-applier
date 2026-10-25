@@ -1,0 +1,20 @@
+# Personal data: never commit. The extension keeps it in a folder you pick, outside the repo;
+# these are for anyone who puts a data folder (or the old Python version's files) here.
+/memory/
+tracker.csv
+/state/
+/logs/
+/data/
+*.pdf
+!examples/**/*.pdf
+
+# Secrets
+.env
+
+# Tooling
+node_modules/
+__pycache__/
+*.py[oc]
+.venv
+*.csv.tmp
+.pytest_cache/

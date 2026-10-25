@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Job Applier",
+  "version": "0.2.0",
+  "description": "Fills job applications from your CV and your answers, asks you about the rest, and finds jobs that fit. You click Submit.",
+  "minimum_chrome_version": "122",
+  "permissions": ["sidePanel", "scripting", "tabs", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "sw.js" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "Job Applier" }
+}
